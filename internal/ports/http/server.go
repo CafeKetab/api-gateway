@@ -22,9 +22,8 @@ func New(cfg *Config, log *zap.Logger, auth grpc.AuthClient) *Server {
 	server.app = fiber.New(fiber.Config{JSONEncoder: json.Marshal, JSONDecoder: json.Unmarshal})
 
 	v1 := server.app.Group("/v1")
-	v1.Group("/users", server.redirect)
-	v1.Group("/books", server.redirect)
-	// v1.Group("/books", server.authenticate, server.redirect)
+	v1.Group("/users", server.optionalAuthentication, server.redirect)
+	v1.Group("/books", server.requiredAuthentication, server.redirect)
 
 	return server
 }

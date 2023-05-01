@@ -10,10 +10,33 @@ import (
 	"go.uber.org/zap"
 )
 
-// authenticate will extract the token and put the user-information
-// to the request header (before it being redirected)
-func (s *Server) authenticate(c *fiber.Ctx) error {
+func (s *Server) optionalAuthentication(c *fiber.Ctx) error {
+	// here we first delete X-User-Id if exists
+	c.Request().Header.Del("X-User-Id")
+
 	header := c.Request().Header.Peek("Authorization")
+
+	if len(header) == 0 {
+		return c.Next()
+	}
+
+	id, err := s.auth.Authenticate(c.Context(), string(header))
+	if err != nil {
+		s.logger.Error("Invalid token header", zap.Error(err))
+		return c.Next()
+	}
+
+	c.Request().Header.Del("Authorization")
+	c.Request().Header.Add("X-User-Id", strconv.FormatUint(id, 10))
+
+	return c.Next()
+}
+
+// requiredAuthentication will extract the token and put the user-information
+// to the request header (before it being redirected)
+func (s *Server) requiredAuthentication(c *fiber.Ctx) error {
+	header := c.Request().Header.Peek("Authorization")
+
 	if len(header) == 0 {
 		s.logger.Error("Missing authorization header")
 		response := "please provide your authentication information"
