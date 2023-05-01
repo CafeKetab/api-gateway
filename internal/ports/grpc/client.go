@@ -31,11 +31,10 @@ func NewAuthClient(cfg *Config, lg *zap.Logger) *authClient {
 }
 
 func (c *authClient) Authenticate(ctx context.Context, token string) (uint64, error) {
-	pbToken := &pb.Token{Value: token}
-	pbId, err := c.api.GetIdFromToken(ctx, pbToken)
+	pbId, err := c.api.GetIdFromToken(ctx, &pb.Token{Value: token})
 	if err != nil {
 		errString := "Error getting id from token"
-		c.logger.Error(errString, zap.Error(err))
+		c.logger.Error(errString, zap.String("token", token), zap.Error(err))
 		return 0, errors.New(errString)
 	}
 	return pbId.Value, nil
