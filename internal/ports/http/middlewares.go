@@ -7,27 +7,26 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/proxy"
 	"go.uber.org/zap"
 )
 
 func (s *Server) optionalAuthentication(c *fiber.Ctx) error {
-	// here we first delete X-User-Id if exists
-	c.Request().Header.Del("X-User-Id")
-
-	header := c.Request().Header.Peek("Authorization")
+	headerBytes := c.Request().Header.Peek("Authorization")
+	header := strings.TrimPrefix(string(headerBytes), "Bearer ")
 
 	if len(header) == 0 {
 		return c.Next()
 	}
 
-	id, err := s.auth.Authenticate(c.Context(), string(header))
+	id, err := s.auth.Authenticate(c.Context(), header)
 	if err != nil {
 		s.logger.Error("Invalid token header", zap.Error(err))
 		return c.Next()
 	}
 
-	c.Request().Header.Del("Authorization")
 	c.Request().Header.Add("X-User-Id", strconv.FormatUint(id, 10))
+	c.Request().Header.Del("Authorization")
 
 	return c.Next()
 }
@@ -50,17 +49,16 @@ func (s *Server) requiredAuthentication(c *fiber.Ctx) error {
 		return c.Status(http.StatusUnauthorized).SendString(response)
 	}
 
-	c.Request().Header.Del("Authorization")
 	c.Request().Header.Add("X-User-Id", strconv.FormatUint(id, 10))
+	c.Request().Header.Del("Authorization")
 
 	return c.Next()
 }
 
-// rate adds a new rate for a ride
-func (s *Server) redirect(c *fiber.Ctx) error {
+func (s *Server) proxy(c *fiber.Ctx) error {
 	path := strings.TrimPrefix(string(c.Request().URI().Path()), "/v1/")
 
-	constructRedirectURL := func(endpoint, base string) string {
+	constructProxyURL := func(endpoint, base string) string {
 		path = strings.TrimPrefix(path, endpoint)
 
 		if len(path) > 1 {
@@ -75,14 +73,16 @@ func (s *Server) redirect(c *fiber.Ctx) error {
 		return base
 	}
 
+	var location string
+
 	if endpoint := "users"; strings.HasPrefix(path, endpoint) {
-		location := constructRedirectURL(endpoint, s.config.TargetUrls.Users)
-		return c.Redirect(location, http.StatusMovedPermanently)
+		location = constructProxyURL(endpoint, s.config.TargetUrls.Users)
 	} else if endpoint = "books"; strings.HasPrefix(path, endpoint) {
-		location := constructRedirectURL(endpoint, s.config.TargetUrls.Books)
-		return c.Redirect(location, http.StatusMovedPermanently)
+		location = constructProxyURL(endpoint, s.config.TargetUrls.Books)
+	} else {
+		s.logger.Error("Invalid endpoint", zap.ByteString("URI", c.Request().URI().FullURI()))
+		return c.Status(http.StatusNotFound).SendString("The requested endpoint doesn't found")
 	}
 
-	s.logger.Error("Invalid endpoint", zap.ByteString("URI", c.Request().URI().FullURI()))
-	return c.Status(http.StatusNotFound).SendString("The requested endpoint doesn't found")
+	return proxy.Do(c, location)
 }

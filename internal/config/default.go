@@ -11,13 +11,14 @@ func Default() *Config {
 		Logger: &logger.Config{
 			Development: true,
 			Level:       "debug",
+			Encoding:    "console",
 		},
 		HTTP: &http.Config{
 			ListenPort: 8080,
 			TargetUrls: struct {
 				Users string "koanf:\"users\""
 				Books string "koanf:\"books\""
-			}{Users: "localhost:8081", Books: "localhost:8082"},
+			}{Users: "http://localhost:8081/v1", Books: "http://localhost:8082/v1"},
 		},
 		GRPC: &grpc.Config{
 			AuthGrpcClientAddress: "localhost:9090",

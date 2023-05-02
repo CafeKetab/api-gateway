@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"github.com/CafeKetab/gateway/internal/config"
+	"github.com/CafeKetab/gateway/internal/ports/grpc"
 	"github.com/CafeKetab/gateway/internal/ports/http"
 	"github.com/CafeKetab/gateway/pkg/logger"
 
@@ -28,9 +29,9 @@ func (cmd Server) Command(trap chan os.Signal) *cobra.Command {
 func (cmd *Server) main(cfg *config.Config, trap chan os.Signal) {
 	logger := logger.NewZap(cfg.Logger)
 
-	// authGrpcClient := grpc.NewAuthClient(cfg.GRPC, logger)
+	authGrpcClient := grpc.NewAuthClient(cfg.GRPC, logger)
 
-	httpServer := http.New(cfg.HTTP, logger, nil)
+	httpServer := http.New(cfg.HTTP, logger, authGrpcClient)
 	go httpServer.Serve()
 
 	// Keep this at the bottom of the main function
